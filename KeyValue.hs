@@ -1,8 +1,8 @@
 -- Simple key value store
 
-import System.Directory
+import           Control.Monad
 import qualified Data.HashMap.Strict as HM
-import Control.Monad
+import           System.Directory
 
 type RecordMap = HM.HashMap String String
 
