@@ -4,7 +4,7 @@ import           Control.Monad
 import qualified Data.HashTable.IO as HT
 import           System.Directory
 
-type RecordMap = HT.BasicHashTable String String
+data RecordMap = RecordMap (HT.BasicHashTable String String)
 
 -- Name of the file containing records
 fileName = "records.dat"
@@ -29,15 +29,19 @@ initDB = do
     -- Create the file if not exists
     createFileIfNotExists fileName
     allcontent <- readFile fileName
-    HT.fromList (map getKeyValue (lines allcontent))
+    m <- HT.fromList (map getKeyValue (lines allcontent))
+    return (RecordMap m)
 
 deserialize :: String -> String -> String
 deserialize k v = k ++ [delim] ++ v ++ "\n"
 
 -- Insert a key value in the database
-put :: String -> String -> IO ()
-put k v = appendFile fileName (deserialize k v)
+put :: RecordMap -> String -> String -> IO RecordMap
+put (RecordMap m) k v = do
+    appendFile fileName (deserialize k v)
+    HT.insert m k v
+    return (RecordMap m)
 
 -- Get the value of the key
 get :: RecordMap -> String -> IO (Maybe String)
-get = HT.lookup
+get (RecordMap m) = HT.lookup m
