@@ -1,10 +1,10 @@
 -- Simple key value store
 
 import           Control.Monad
-import qualified Data.HashMap.Strict as HM
+import qualified Data.HashTable.IO as HT
 import           System.Directory
 
-type RecordMap = HM.HashMap String String
+type RecordMap = HT.BasicHashTable String String
 
 -- Name of the file containing records
 fileName = "records.dat"
@@ -29,7 +29,7 @@ initDB = do
     -- Create the file if not exists
     createFileIfNotExists fileName
     allcontent <- readFile fileName
-    return (HM.fromList (map getKeyValue (lines allcontent)))
+    HT.fromList (map getKeyValue (lines allcontent))
 
 deserialize :: String -> String -> String
 deserialize k v = k ++ [delim] ++ v ++ "\n"
@@ -39,5 +39,5 @@ put :: String -> String -> IO ()
 put k v = appendFile fileName (deserialize k v)
 
 -- Get the value of the key
-get :: RecordMap -> String -> String
-get m k = HM.lookupDefault "" k m
+get :: RecordMap -> String -> IO (Maybe String)
+get = HT.lookup
