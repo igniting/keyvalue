@@ -66,8 +66,19 @@ get (RecordMap m) k = do
     maybeOffset <- HT.lookup m k
     case maybeOffset of
       Nothing -> return Nothing
-      (Just offset) -> do
-        ht <- openFile recordsFileName ReadMode
-        hSeek ht AbsoluteSeek offset
-        l <- hGetLine ht
-        return (Just ((snd . getKeyValue) l))
+      (Just offset) -> if offset < 0
+        then
+          return Nothing
+        else
+          do
+            ht <- openFile recordsFileName ReadMode
+            hSeek ht AbsoluteSeek offset
+            l <- hGetLine ht
+            return (Just ((snd . getKeyValue) l))
+
+-- Delete key from database
+delete :: RecordMap -> String -> IO RecordMap
+delete (RecordMap m) k = do
+    HT.delete m k
+    appendFile hintFileName (deserialize k "-1")
+    return (RecordMap m)
