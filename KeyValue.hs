@@ -56,6 +56,7 @@ put (RecordMap m) k v = do
     ht <- openFile recordsFileName AppendMode
     offset <- hFileSize ht
     hPutStr ht (deserialize k v)
+    hClose ht
     appendFile hintFileName (deserialize k (show offset))
     HT.insert m k offset
     return (RecordMap m)
@@ -74,6 +75,7 @@ get (RecordMap m) k = do
             ht <- openFile recordsFileName ReadMode
             hSeek ht AbsoluteSeek offset
             l <- hGetLine ht
+            hClose ht
             return (Just ((snd . getKeyValue) l))
 
 -- Delete key from database
