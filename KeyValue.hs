@@ -3,19 +3,19 @@
 import           Control.Monad
 import qualified Data.HashTable.IO as HT
 import           System.Directory
+import           System.IO
 
-data RecordMap = RecordMap (HT.BasicHashTable String String)
+-- Store offset of key
+data RecordMap = RecordMap (HT.BasicHashTable String Integer)
 
 -- Name of the file containing records
-fileName = "records.dat"
+recordsFileName = "records.dat"
+
+-- Name of the file containing offsets
+hintFileName = "hint.dat"
 
 -- Delimiter between key value
 delim = ' '
-
-createFileIfNotExists :: FilePath -> IO ()
-createFileIfNotExists name = do
-    check <- doesFileExist name
-    unless check $ writeFile name ""
 
 getKeyValue :: String -> (String, String)
 getKeyValue s = (x, y) where
@@ -23,14 +23,29 @@ getKeyValue s = (x, y) where
   y = (tail . snd) p
   p = span (/= delim) s
 
+getKeyValueAsInt :: String -> (String, Integer)
+getKeyValueAsInt s = (x, y) where
+  x = fst p
+  y = (read . snd) p
+  p = getKeyValue s
+
 -- Initialize the database
 initDB :: IO RecordMap
 initDB = do
-    -- Create the file if not exists
-    createFileIfNotExists fileName
-    allcontent <- readFile fileName
-    m <- HT.fromList (map getKeyValue (lines allcontent))
-    return (RecordMap m)
+    -- Create the records file if not exists
+    check <- doesFileExist recordsFileName
+    if check
+      then
+        do
+          allcontent <- readFile hintFileName
+          m <- HT.fromList (map getKeyValueAsInt (lines allcontent))
+          return (RecordMap m)
+      else
+        do
+          writeFile recordsFileName ""
+          writeFile hintFileName ""
+          m <- HT.new
+          return (RecordMap m)
 
 deserialize :: String -> String -> String
 deserialize k v = k ++ [delim] ++ v ++ "\n"
@@ -38,10 +53,21 @@ deserialize k v = k ++ [delim] ++ v ++ "\n"
 -- Insert a key value in the database
 put :: RecordMap -> String -> String -> IO RecordMap
 put (RecordMap m) k v = do
-    appendFile fileName (deserialize k v)
-    HT.insert m k v
+    ht <- openFile recordsFileName AppendMode
+    offset <- hFileSize ht
+    hPutStr ht (deserialize k v)
+    appendFile hintFileName (deserialize k (show offset))
+    HT.insert m k offset
     return (RecordMap m)
 
 -- Get the value of the key
 get :: RecordMap -> String -> IO (Maybe String)
-get (RecordMap m) = HT.lookup m
+get (RecordMap m) k = do
+    maybeOffset <- HT.lookup m k
+    case maybeOffset of
+      Nothing -> return Nothing
+      (Just offset) -> do
+        ht <- openFile recordsFileName ReadMode
+        hSeek ht AbsoluteSeek offset
+        l <- hGetLine ht
+        return (Just ((snd . getKeyValue) l))
