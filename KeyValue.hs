@@ -1,6 +1,11 @@
 -- Simple key value store
 
-import           Control.Monad
+module KeyValue (
+  get,
+  put,
+  delete,
+  initDB) where
+
 import qualified Data.HashTable.IO as HT
 import           System.Directory
 import           System.IO
