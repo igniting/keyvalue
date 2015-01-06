@@ -107,8 +107,8 @@ put (RecordMap m) k v = do
     offset <- hFileSize ht
     BL.hPutStr ht (runPut (deserializeData k v))
     hClose ht
-    BL.appendFile hintFileName (runPut (deserializeHint k offset))
-    HT.insert m k offset
+    BL.appendFile hintFileName (runPut (deserializeHint k (offset + 1)))
+    HT.insert m k (offset + 1)
     return ()
 
 -- Get the value of the key
@@ -117,13 +117,13 @@ get (RecordMap m) k = do
     maybeOffset <- HT.lookup m k
     case maybeOffset of
       Nothing -> return Nothing
-      (Just offset) -> if offset < 0
+      (Just offset) -> if offset == 0
         then
           return Nothing
         else
           do
             ht <- openFile recordsFileName ReadMode
-            hSeek ht AbsoluteSeek offset
+            hSeek ht AbsoluteSeek (offset - 1)
             l <- BL.hGetContents ht
             return (Just (dValue (runGet parseDataLog l)))
 
@@ -131,5 +131,5 @@ get (RecordMap m) k = do
 delete :: RecordMap -> Key -> IO ()
 delete (RecordMap m) k = do
     HT.delete m k
-    BL.appendFile hintFileName (runPut (deserializeHint k (-1)))
+    BL.appendFile hintFileName (runPut (deserializeHint k 0))
     return ()
