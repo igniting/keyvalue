@@ -4,6 +4,7 @@ module Database.KeyValue ( get
                          , put
                          , delete
                          , initDB
+                         , Config
                          ) where
 
 import           Data.Binary.Get
@@ -15,45 +16,41 @@ import           Database.KeyValue.Types
 import           System.Directory
 import           System.IO
 
--- Name of the file containing records
-recordsFileName = "records.dat"
-
--- Name of the file containing offsets
-hintFileName = "hint.dat"
-
 -- Initialize the database
-initDB :: IO RecordMap
-initDB = do
+initDB :: Config -> IO KeyValue
+initDB cfg = do
     -- Create the records file if not exists
-    check <- doesFileExist recordsFileName
+    check <- doesFileExist (recordsFileName cfg)
     if check
       then
         do
-          allcontent <- BL.readFile hintFileName
+          allcontent <- BL.readFile (hintFileName cfg)
           m <- HT.fromList (map getKeyOffsetPair (runGet parseHintLogs allcontent))
-          return (RecordMap m)
+          return (KeyValue (recordsFileName cfg) (hintFileName cfg) m)
       else
         do
-          writeFile recordsFileName ""
-          writeFile hintFileName ""
+          writeFile (recordsFileName cfg) ""
+          writeFile (hintFileName cfg) ""
           m <- HT.new
-          return (RecordMap m)
+          return (KeyValue (recordsFileName cfg) (hintFileName cfg) m)
 
 -- Insert a key value in the database
-put :: RecordMap -> Key -> Value -> IO ()
-put (RecordMap m) k v = do
-    ht <- openFile recordsFileName AppendMode
+put :: KeyValue -> Key -> Value -> IO ()
+put db k v = do
+    ht <- openBinaryFile (currRecords db) AppendMode
     offset <- hFileSize ht
     BL.hPutStr ht (runPut (deserializeData k v))
     hClose ht
-    BL.appendFile hintFileName (runPut (deserializeHint k (offset + 1)))
-    HT.insert m k (offset + 1)
+    htH <- openBinaryFile (currHint db) AppendMode
+    BL.hPutStr htH (runPut (deserializeHint k (offset + 1)))
+    hClose htH
+    HT.insert (offsetTable db) k (offset + 1)
     return ()
 
 -- Get the value of the key
-get :: RecordMap -> Key -> IO (Maybe Value)
-get (RecordMap m) k = do
-    maybeOffset <- HT.lookup m k
+get :: KeyValue -> Key -> IO (Maybe Value)
+get db k = do
+    maybeOffset <- HT.lookup (offsetTable db) k
     case maybeOffset of
       Nothing -> return Nothing
       (Just offset) -> if offset == 0
@@ -61,14 +58,16 @@ get (RecordMap m) k = do
           return Nothing
         else
           do
-            ht <- openFile recordsFileName ReadMode
+            ht <- openBinaryFile (currRecords db) ReadMode
             hSeek ht AbsoluteSeek (offset - 1)
             l <- BL.hGetContents ht
             return (Just (dValue (runGet parseDataLog l)))
 
 -- Delete key from database
-delete :: RecordMap -> Key -> IO ()
-delete (RecordMap m) k = do
-    HT.delete m k
-    BL.appendFile hintFileName (runPut (deserializeHint k 0))
+delete :: KeyValue -> Key -> IO ()
+delete db k = do
+    HT.delete (offsetTable db) k
+    ht <- openBinaryFile (currHint db) AppendMode
+    BL.hPutStr ht (runPut (deserializeHint k 0))
+    hClose ht
     return ()
