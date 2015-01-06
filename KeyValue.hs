@@ -6,12 +6,33 @@ module KeyValue (
   delete,
   initDB) where
 
-import qualified Data.HashTable.IO as HT
+import           Data.Binary.Get
+import           Data.Binary.Put
+import qualified Data.ByteString      as B
+import qualified Data.ByteString.Lazy as BL
+import qualified Data.HashTable.IO    as HT
+import           Data.Word
 import           System.Directory
 import           System.IO
 
+type Key   = B.ByteString
+type Value = B.ByteString
+
 -- Store offset of key
-data RecordMap = RecordMap (HT.BasicHashTable String Integer)
+data RecordMap = RecordMap (HT.BasicHashTable Key Integer)
+
+-- Hint Log format
+data HintLog = HintLog { hKeySize :: Word32
+                       , hKey     :: Key
+                       , hOffset   :: Word64
+                       }
+
+-- Data Log format
+data DataLog = DataLog { dKeySize   :: Word32
+                       , dKey       :: Key
+                       , dValueSize :: Word32
+                       , dValue     :: Value
+                       }
 
 -- Name of the file containing records
 recordsFileName = "records.dat"
@@ -19,20 +40,32 @@ recordsFileName = "records.dat"
 -- Name of the file containing offsets
 hintFileName = "hint.dat"
 
--- Delimiter between key value
-delim = ' '
+parseHintLog :: Get HintLog
+parseHintLog = do
+  keySize <- getWord32le
+  key <- getByteString (fromIntegral keySize)
+  offset <- getWord64le
+  return (HintLog keySize key offset)
 
-getKeyValue :: String -> (String, String)
-getKeyValue s = (x, y) where
-  x = fst p
-  y = (tail . snd) p
-  p = span (/= delim) s
+parseHintLogs :: Get [HintLog]
+parseHintLogs = do
+  empty <- isEmpty
+  if empty
+     then return []
+     else do hintlog <- parseHintLog
+             hintlogs <- parseHintLogs
+             return (hintlog:hintlogs)
 
-getKeyValueAsInt :: String -> (String, Integer)
-getKeyValueAsInt s = (x, y) where
-  x = fst p
-  y = (read . snd) p
-  p = getKeyValue s
+parseDataLog :: Get DataLog
+parseDataLog = do
+  keySize <- getWord32le
+  key <- getByteString (fromIntegral keySize)
+  valueSize <- getWord32le
+  value <- getByteString (fromIntegral valueSize)
+  return (DataLog keySize key valueSize value)
+
+getKeyOffsetPair :: HintLog -> (Key, Integer)
+getKeyOffsetPair h = (hKey h, (fromIntegral . hOffset) h)
 
 -- Initialize the database
 initDB :: IO RecordMap
@@ -42,8 +75,8 @@ initDB = do
     if check
       then
         do
-          allcontent <- readFile hintFileName
-          m <- HT.fromList (map getKeyValueAsInt (lines allcontent))
+          allcontent <- BL.readFile hintFileName
+          m <- HT.fromList (map getKeyOffsetPair (runGet parseHintLogs allcontent))
           return (RecordMap m)
       else
         do
@@ -52,22 +85,34 @@ initDB = do
           m <- HT.new
           return (RecordMap m)
 
-deserialize :: String -> String -> String
-deserialize k v = k ++ [delim] ++ v ++ "\n"
+deserializeData :: Key -> Value -> Put
+deserializeData k v = do
+  _ <- putWord32le ((fromIntegral . B.length) k)
+  _ <- putByteString k
+  _ <- putWord32le ((fromIntegral . B.length) v)
+  _ <- putByteString v
+  return ()
+
+deserializeHint :: Key -> Integer -> Put
+deserializeHint k o = do
+  _ <- putWord32le ((fromIntegral . B.length) k)
+  _ <- putByteString k
+  _ <- putWord64le (fromIntegral o)
+  return ()
 
 -- Insert a key value in the database
-put :: RecordMap -> String -> String -> IO RecordMap
+put :: RecordMap -> Key -> Value -> IO ()
 put (RecordMap m) k v = do
     ht <- openFile recordsFileName AppendMode
     offset <- hFileSize ht
-    hPutStr ht (deserialize k v)
+    BL.hPutStr ht (runPut (deserializeData k v))
     hClose ht
-    appendFile hintFileName (deserialize k (show offset))
+    BL.appendFile hintFileName (runPut (deserializeHint k offset))
     HT.insert m k offset
-    return (RecordMap m)
+    return ()
 
 -- Get the value of the key
-get :: RecordMap -> String -> IO (Maybe String)
+get :: RecordMap -> Key -> IO (Maybe Value)
 get (RecordMap m) k = do
     maybeOffset <- HT.lookup m k
     case maybeOffset of
@@ -79,13 +124,12 @@ get (RecordMap m) k = do
           do
             ht <- openFile recordsFileName ReadMode
             hSeek ht AbsoluteSeek offset
-            l <- hGetLine ht
-            hClose ht
-            return (Just ((snd . getKeyValue) l))
+            l <- BL.hGetContents ht
+            return (Just (dValue (runGet parseDataLog l)))
 
 -- Delete key from database
-delete :: RecordMap -> String -> IO RecordMap
+delete :: RecordMap -> Key -> IO ()
 delete (RecordMap m) k = do
     HT.delete m k
-    appendFile hintFileName (deserialize k "-1")
-    return (RecordMap m)
+    BL.appendFile hintFileName (runPut (deserializeHint k (-1)))
+    return ()
