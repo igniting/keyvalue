@@ -4,6 +4,7 @@ module Database.KeyValue ( get
                          , put
                          , delete
                          , initDB
+                         , listKeys
                          , Config
                          ) where
 
@@ -71,3 +72,7 @@ delete db k = do
     BL.hPutStr ht (runPut (deserializeHint k 0))
     hClose ht
     return ()
+
+-- List all keys
+listKeys :: KeyValue -> IO [Key]
+listKeys db = fmap (map fst) $ (HT.toList . offsetTable) db
