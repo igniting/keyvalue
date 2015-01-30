@@ -5,6 +5,7 @@ module Database.KeyValue ( get
                          , delete
                          , initDB
                          , listKeys
+                         , closeDB
                          , Config
                          ) where
 
@@ -25,26 +26,25 @@ initDB cfg = do
     if check
       then
         do
+          ht <- openBinaryFile (recordsFileName cfg) ReadWriteMode
           allcontent <- BL.readFile (hintFileName cfg)
           m <- HT.fromList (map getKeyOffsetPair (runGet parseHintLogs allcontent))
-          return (KeyValue (recordsFileName cfg) (hintFileName cfg) m)
+          return (KeyValue (recordsFileName cfg) ht (hintFileName cfg) m)
       else
         do
           writeFile (recordsFileName cfg) ""
           writeFile (hintFileName cfg) ""
           m <- HT.new
-          return (KeyValue (recordsFileName cfg) (hintFileName cfg) m)
+          ht <- openBinaryFile (recordsFileName cfg) ReadWriteMode
+          return (KeyValue (recordsFileName cfg) ht (hintFileName cfg) m)
 
 -- Insert a key value in the database
 put :: KeyValue -> Key -> Value -> IO ()
 put db k v = do
-    ht <- openBinaryFile (currRecords db) AppendMode
-    offset <- hFileSize ht
-    BL.hPutStr ht (runPut (deserializeData k v))
-    hClose ht
-    htH <- openBinaryFile (currHint db) AppendMode
-    BL.hPutStr htH (runPut (deserializeHint k (offset + 1)))
-    hClose htH
+    offset <- hFileSize (currHandle db)
+    hSeek (currHandle db) SeekFromEnd 0
+    BL.hPut (currHandle db) (runPut (deserializeData k v))
+    BL.appendFile (currHint db) (runPut (deserializeHint k (offset + 1)))
     HT.insert (offsetTable db) k (offset + 1)
     return ()
 
@@ -59,20 +59,20 @@ get db k = do
           return Nothing
         else
           do
-            ht <- openBinaryFile (currRecords db) ReadMode
-            hSeek ht AbsoluteSeek (offset - 1)
-            l <- BL.hGetContents ht
+            hSeek (currHandle db) AbsoluteSeek (offset - 1)
+            l <- BL.hGetContents (currHandle db)
             return (Just (dValue (runGet parseDataLog l)))
 
 -- Delete key from database
 delete :: KeyValue -> Key -> IO ()
 delete db k = do
     HT.delete (offsetTable db) k
-    ht <- openBinaryFile (currHint db) AppendMode
-    BL.hPutStr ht (runPut (deserializeHint k 0))
-    hClose ht
+    BL.appendFile (currHint db) (runPut (deserializeHint k 0))
     return ()
 
 -- List all keys
 listKeys :: KeyValue -> IO [Key]
 listKeys db = fmap (map fst) $ (HT.toList . offsetTable) db
+
+closeDB :: KeyValue -> IO ()
+closeDB db = hClose (currHandle db)

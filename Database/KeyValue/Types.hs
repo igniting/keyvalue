@@ -30,6 +30,7 @@ data Config = Config { recordsFileName :: FilePath
                      }
 
 data KeyValue = KeyValue { currRecords :: FilePath
+                         , currHandle :: Handle
                          , currHint :: FilePath
                          , offsetTable :: OffsetTable
                          }
