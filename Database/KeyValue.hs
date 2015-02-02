@@ -9,10 +9,11 @@ module Database.KeyValue ( get
                          , Config
                          ) where
 
-import           Data.Binary.Get
-import           Data.Binary.Put
+import qualified Data.ByteString           as B
 import qualified Data.ByteString.Lazy      as BL
 import qualified Data.HashTable.IO         as HT
+import           Data.Serialize.Get
+import           Data.Serialize.Put
 import           Database.KeyValue.Parsing
 import           Database.KeyValue.Types
 import           System.Directory
@@ -27,8 +28,10 @@ initDB cfg = do
       then
         do
           ht <- openBinaryFile (recordsFileName cfg) ReadWriteMode
-          allcontent <- BL.readFile (hintFileName cfg)
-          m <- HT.fromList (map getKeyOffsetPair (runGet parseHintLogs allcontent))
+          allcontent <- B.readFile (hintFileName cfg)
+          m <- case runGet parseHintLogs allcontent of
+                 Left _ -> error "Error occured reading hint file"
+                 Right logs -> HT.fromList (map getKeyOffsetPair logs)
           return (KeyValue (recordsFileName cfg) ht (hintFileName cfg) m)
       else
         do
@@ -43,8 +46,8 @@ put :: KeyValue -> Key -> Value -> IO ()
 put db k v = do
     offset <- hFileSize (currHandle db)
     hSeek (currHandle db) SeekFromEnd 0
-    BL.hPut (currHandle db) (runPut (deserializeData k v))
-    BL.appendFile (currHint db) (runPut (deserializeHint k (offset + 1)))
+    B.hPut (currHandle db) (runPut (deserializeData k v))
+    B.appendFile (currHint db) (runPut (deserializeHint k (offset + 1)))
     HT.insert (offsetTable db) k (offset + 1)
     return ()
 
@@ -61,13 +64,15 @@ get db k = do
           do
             hSeek (currHandle db) AbsoluteSeek (offset - 1)
             l <- BL.hGetContents (currHandle db)
-            return (Just (dValue (runGet parseDataLog l)))
+            case runGetLazy parseDataLog l of
+              Left _ -> return Nothing
+              Right v -> return (Just (dValue v))
 
 -- Delete key from database
 delete :: KeyValue -> Key -> IO ()
 delete db k = do
     HT.delete (offsetTable db) k
-    BL.appendFile (currHint db) (runPut (deserializeHint k 0))
+    B.appendFile (currHint db) (runPut (deserializeHint k 0))
     return ()
 
 -- List all keys

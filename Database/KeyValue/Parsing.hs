@@ -1,8 +1,8 @@
 module Database.KeyValue.Parsing where
 
-import           Data.Binary.Get
-import           Data.Binary.Put
 import qualified Data.ByteString         as B
+import           Data.Serialize.Get
+import           Data.Serialize.Put
 import           Database.KeyValue.Types
 
 parseHintLog :: Get HintLog
