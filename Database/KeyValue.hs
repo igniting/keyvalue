@@ -6,9 +6,11 @@ module Database.KeyValue ( get
                          , initDB
                          , listKeys
                          , closeDB
+                         , mergeDataLogs
                          , Config
                          ) where
 
+import           Control.Exception
 import qualified Data.ByteString                 as B
 import qualified Data.ByteString.Lazy            as BL
 import qualified Data.HashTable.IO               as HT
@@ -77,3 +79,22 @@ closeDB db = do
     hClose (currRecordHandle db)
     recordHandles <- fmap (map (rHandle . snd)) ((HT.toList . offsetTable) db)
     mapM_ hClose recordHandles
+
+mergeDataLogs :: FilePath -> IO ()
+mergeDataLogs dir = do
+    check <- doesDirectoryExist dir
+    if not check
+      then error "Base directory does not exist."
+      else
+        do
+          hintFiles' <- getFiles hintExt dir
+          hintFiles <- evaluate hintFiles'
+          currentKeys <- getKeysFromHintFiles hintFiles
+          recordFiles' <- getFiles recordExt dir
+          recordFiles <- evaluate recordFiles'
+          (newHintHandle, newRecordHandle) <- addNewRecord dir
+          putKeysFromRecordFiles newHintHandle newRecordHandle currentKeys recordFiles
+          hClose newHintHandle
+          hClose newRecordHandle
+          mapM_ removeFile hintFiles
+          mapM_ removeFile recordFiles

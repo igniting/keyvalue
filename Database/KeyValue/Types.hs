@@ -15,6 +15,9 @@ data ValueLoc = ValueLoc { rOffset :: Integer
 -- Store record info in a hash table
 type OffsetTable = HT.BasicHashTable Key ValueLoc
 
+type Timestamp = Integer
+type KeysTable = HT.BasicHashTable Key Timestamp
+
 -- Hint Log format
 data HintLog = HintLog { hKeySize :: Word32
                        , hKey     :: Key

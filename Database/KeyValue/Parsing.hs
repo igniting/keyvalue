@@ -29,6 +29,15 @@ parseDataLog = do
   value <- getByteString (fromIntegral valueSize)
   return (DataLog keySize key valueSize value)
 
+parseDataLogs :: Get [DataLog]
+parseDataLogs = do
+  empty <- isEmpty
+  if empty
+     then return []
+     else do dataLog <- parseDataLog
+             dataLogs <- parseDataLogs
+             return (dataLog:dataLogs)
+
 getKeyOffsetPair :: HintLog -> (Key, Integer)
 getKeyOffsetPair h = (hKey h, (fromIntegral . hOffset) h)
 
