@@ -23,6 +23,9 @@ library
                        hashtables >=1.2 && <1.3,
                        directory >=1.2 && <1.3,
                        bytestring,
-                       cereal
+                       cereal,
+                       filemanip,
+                       filepath,
+                       temporary
   -- hs-source-dirs:      
   default-language:    Haskell2010

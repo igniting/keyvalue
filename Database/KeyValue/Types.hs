@@ -1,15 +1,19 @@
 module Database.KeyValue.Types where
 
-import qualified Data.ByteString   as B
-import qualified Data.HashTable.IO as HT
+import qualified Data.ByteString       as B
+import qualified Data.HashTable.IO     as HT
 import           Data.Word
 import           System.IO
 
 type Key   = B.ByteString
 type Value = B.ByteString
 
--- Store offset of key
-type OffsetTable = HT.BasicHashTable Key Integer
+data ValueLoc = ValueLoc { rOffset :: Integer
+                         , rHandle :: Handle
+                         }
+
+-- Store record info in a hash table
+type OffsetTable = HT.BasicHashTable Key ValueLoc
 
 -- Hint Log format
 data HintLog = HintLog { hKeySize :: Word32
@@ -25,12 +29,9 @@ data DataLog = DataLog { dKeySize   :: Word32
                        }
 
 -- Config for the database
-data Config = Config { recordsFileName :: FilePath
-                     , hintFileName :: FilePath
-                     }
+data Config = Config { baseDirectory :: FilePath }
 
-data KeyValue = KeyValue { currRecords :: FilePath
-                         , currHandle :: Handle
-                         , currHint :: FilePath
+data KeyValue = KeyValue { currHintHandle :: Handle
+                         , currRecordHandle :: Handle
                          , offsetTable :: OffsetTable
                          }
