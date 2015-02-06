@@ -15,13 +15,14 @@ data ValueLoc = ValueLoc { rOffset :: Integer
 -- Store record info in a hash table
 type OffsetTable = HT.BasicHashTable Key ValueLoc
 
-type Timestamp = Integer
+type Timestamp = Word64
 type KeysTable = HT.BasicHashTable Key Timestamp
 
 -- Hint Log format
-data HintLog = HintLog { hKeySize :: Word32
-                       , hKey     :: Key
-                       , hOffset  :: Word64
+data HintLog = HintLog { hKeySize   :: Word32
+                       , hKey       :: Key
+                       , hOffset    :: Word64
+                       , hTimestamp :: Word64
                        }
 
 -- Data Log format
@@ -29,6 +30,7 @@ data DataLog = DataLog { dKeySize   :: Word32
                        , dKey       :: Key
                        , dValueSize :: Word32
                        , dValue     :: Value
+                       , dTimestamp :: Word64
                        }
 
 -- Config for the database

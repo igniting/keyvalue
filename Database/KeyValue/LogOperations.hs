@@ -1,5 +1,6 @@
 module Database.KeyValue.LogOperations where
 
+import           Control.Arrow
 import           Control.Monad
 import qualified Data.ByteString           as B
 import qualified Data.HashTable.IO         as HT
@@ -54,18 +55,18 @@ getKeysFromHintFiles hintFiles = do
       c <- B.readFile file
       case runGet parseHintLogs c of
         Left _ -> error "Error occured parsing hint log."
-        Right hintLogs -> return (map (\l -> (hKey l, 0)) (filter (\l -> hOffset l /= 0) hintLogs))
+        Right hintLogs -> return (map (hKey &&& hTimestamp) (filter (\l -> hOffset l /= 0) hintLogs))
 
     checkAndInsert :: KeysTable -> (Key, Timestamp) -> IO ()
     checkAndInsert table (k, t) = do
       v <- HT.lookup table k
       case v of
         Nothing -> HT.insert table k t
-        Just t' -> when (t' > t) $ HT.insert table k t'
+        Just t' -> when (t > t') $ HT.insert table k t'
 
 putKeysFromRecordFiles :: Handle -> Handle -> KeysTable -> [FilePath] -> IO ()
-putKeysFromRecordFiles hintHandle recordHandle table recordFiles =
-  mapM_ (putKeysFromRecordFile hintHandle recordHandle table) recordFiles where
+putKeysFromRecordFiles hintHandle recordHandle table =
+  mapM_ (putKeysFromRecordFile hintHandle recordHandle table) where
     putKeysFromRecordFile :: Handle -> Handle -> KeysTable -> FilePath -> IO ()
     putKeysFromRecordFile hHt rHt t recordFile = do
       c <- B.readFile recordFile
@@ -76,12 +77,12 @@ putKeysFromRecordFiles hintHandle recordHandle table recordFiles =
     putKeyFromDataLog :: Handle -> Handle -> KeysTable -> DataLog -> IO ()
     putKeyFromDataLog hHt rHt t dataLog = do
       let k = dKey dataLog
+          timestamp = dTimestamp dataLog
       v <- HT.lookup t k
       case v of
         Nothing -> return ()
-        Just _ -> do
-          -- TODO: Check time stamps
+        Just t' -> when (t' == timestamp) $ do
           offset <- hFileSize rHt
-          B.hPut rHt (runPut (deserializeData k (dValue dataLog)))
-          B.hPut hHt (runPut (deserializeHint k (offset + 1)))
+          B.hPut rHt (runPut (deserializeData k (dValue dataLog) timestamp))
+          B.hPut hHt (runPut (deserializeHint k (offset + 1) timestamp))
           return ()

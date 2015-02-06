@@ -18,6 +18,7 @@ import           Data.Serialize.Get
 import           Data.Serialize.Put
 import           Database.KeyValue.LogOperations
 import           Database.KeyValue.Parsing
+import           Database.KeyValue.Timestamp
 import           Database.KeyValue.Types
 import           System.Directory
 import           System.IO
@@ -32,6 +33,7 @@ initDB cfg = do
         do
           hintFileNames <- getFiles hintExt (baseDirectory cfg)
           keysAndValueLocs <- getKeyAndValueLocs hintFileNames
+          -- TODO: Add conflict resolution using timestamp
           table <- HT.fromList keysAndValueLocs
           (newHintHandle, newRecordHandle) <- addNewRecord (baseDirectory cfg)
           return (KeyValue newHintHandle newRecordHandle table)
@@ -40,8 +42,9 @@ initDB cfg = do
 put :: KeyValue -> Key -> Value -> IO ()
 put db k v = do
     offset <- hFileSize (currRecordHandle db)
-    B.hPut (currRecordHandle db) (runPut (deserializeData k v))
-    B.hPut (currHintHandle db) (runPut (deserializeHint k (offset + 1)))
+    t <- currentTimestamp
+    B.hPut (currRecordHandle db) (runPut (deserializeData k v t))
+    B.hPut (currHintHandle db) (runPut (deserializeHint k (offset + 1) t))
     HT.insert (offsetTable db) k (ValueLoc (offset + 1) (currRecordHandle db))
     return ()
 
@@ -66,7 +69,8 @@ get db k = do
 delete :: KeyValue -> Key -> IO ()
 delete db k = do
     HT.delete (offsetTable db) k
-    B.hPut (currHintHandle db) (runPut (deserializeHint k 0))
+    t <- currentTimestamp
+    B.hPut (currHintHandle db) (runPut (deserializeHint k 0 t))
     return ()
 
 -- List all keys

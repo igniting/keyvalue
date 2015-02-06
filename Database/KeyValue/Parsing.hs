@@ -10,7 +10,8 @@ parseHintLog = do
   keySize <- getWord32le
   key <- getByteString (fromIntegral keySize)
   offset <- getWord64le
-  return (HintLog keySize key offset)
+  timestamp <- getWord64le
+  return (HintLog keySize key offset timestamp)
 
 parseHintLogs :: Get [HintLog]
 parseHintLogs = do
@@ -27,7 +28,8 @@ parseDataLog = do
   key <- getByteString (fromIntegral keySize)
   valueSize <- getWord32le
   value <- getByteString (fromIntegral valueSize)
-  return (DataLog keySize key valueSize value)
+  timestamp <- getWord64le
+  return (DataLog keySize key valueSize value timestamp)
 
 parseDataLogs :: Get [DataLog]
 parseDataLogs = do
@@ -41,17 +43,19 @@ parseDataLogs = do
 getKeyOffsetPair :: HintLog -> (Key, Integer)
 getKeyOffsetPair h = (hKey h, (fromIntegral . hOffset) h)
 
-deserializeData :: Key -> Value -> Put
-deserializeData k v = do
-  _ <- putWord32le ((fromIntegral . B.length) k)
-  _ <- putByteString k
-  _ <- putWord32le ((fromIntegral . B.length) v)
-  _ <- putByteString v
+deserializeData :: Key -> Value -> Timestamp -> Put
+deserializeData k v t = do
+  putWord32le ((fromIntegral . B.length) k)
+  putByteString k
+  putWord32le ((fromIntegral . B.length) v)
+  putByteString v
+  putWord64le (fromIntegral t)
   return ()
 
-deserializeHint :: Key -> Integer -> Put
-deserializeHint k o = do
-  _ <- putWord32le ((fromIntegral . B.length) k)
-  _ <- putByteString k
-  _ <- putWord64le (fromIntegral o)
+deserializeHint :: Key -> Integer -> Timestamp -> Put
+deserializeHint k o t = do
+  putWord32le ((fromIntegral . B.length) k)
+  putByteString k
+  putWord64le (fromIntegral o)
+  putWord64le (fromIntegral t)
   return ()
