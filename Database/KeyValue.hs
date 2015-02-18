@@ -1,4 +1,11 @@
--- Simple key value store
+{-|
+  Module      : Database.KeyValue
+  Description : A simple key value store inspired from Bitcask
+  Stability   : Experimental
+
+  KeyValue is a simple key value store inspired from Bitcask.
+  The design is based on log-structured file systems.
+-}
 
 module Database.KeyValue ( get
                          , put
@@ -10,35 +17,20 @@ module Database.KeyValue ( get
                          , Config
                          ) where
 
-import           Control.Exception
 import qualified Data.ByteString                 as B
 import qualified Data.ByteString.Lazy            as BL
 import qualified Data.HashTable.IO               as HT
 import           Data.Serialize.Get
 import           Data.Serialize.Put
-import           Database.KeyValue.LogOperations
+import           Database.KeyValue.Init
+import           Database.KeyValue.Merge
 import           Database.KeyValue.Parsing
 import           Database.KeyValue.Timestamp
 import           Database.KeyValue.Types
-import           System.Directory
 import           System.IO
 
--- Initialize the database
-initDB :: Config -> IO KeyValue
-initDB cfg = do
-    check <- doesDirectoryExist (baseDirectory cfg)
-    if not check
-      then error "Base directory does not exist."
-      else
-        do
-          hintFileNames <- getFiles hintExt (baseDirectory cfg)
-          keysAndValueLocs <- getKeyAndValueLocs hintFileNames
-          -- TODO: Add conflict resolution using timestamp
-          table <- HT.fromList keysAndValueLocs
-          (newHintHandle, newRecordHandle) <- addNewRecord (baseDirectory cfg)
-          return (KeyValue newHintHandle newRecordHandle table)
 
--- Insert a key value in the database
+-- | Insert a key value in the database
 put :: KeyValue -> Key -> Value -> IO ()
 put db k v = do
     offset <- hFileSize (currRecordHandle db)
@@ -48,7 +40,7 @@ put db k v = do
     HT.insert (offsetTable db) k (ValueLoc (offset + 1) (currRecordHandle db))
     return ()
 
--- Get the value of the key
+-- | Get the value of the key
 get :: KeyValue -> Key -> IO (Maybe Value)
 get db k = do
     maybeRecordInfo <- HT.lookup (offsetTable db) k
@@ -65,7 +57,7 @@ get db k = do
               Left _ -> return Nothing
               Right v -> return (Just (dValue v))
 
--- Delete key from database
+-- | Delete key from database
 delete :: KeyValue -> Key -> IO ()
 delete db k = do
     HT.delete (offsetTable db) k
@@ -73,32 +65,14 @@ delete db k = do
     B.hPut (currHintHandle db) (runPut (deserializeHint k 0 t))
     return ()
 
--- List all keys
+-- | List all keys
 listKeys :: KeyValue -> IO [Key]
 listKeys db = fmap (map fst) $ (HT.toList . offsetTable) db
 
+-- | Close the current instance of database
 closeDB :: KeyValue -> IO ()
 closeDB db = do
     hClose (currHintHandle db)
     hClose (currRecordHandle db)
     recordHandles <- fmap (map (rHandle . snd)) ((HT.toList . offsetTable) db)
     mapM_ hClose recordHandles
-
-mergeDataLogs :: FilePath -> IO ()
-mergeDataLogs dir = do
-    check <- doesDirectoryExist dir
-    if not check
-      then error "Base directory does not exist."
-      else
-        do
-          hintFiles' <- getFiles hintExt dir
-          hintFiles <- evaluate hintFiles'
-          currentKeys <- getKeysFromHintFiles hintFiles
-          recordFiles' <- getFiles recordExt dir
-          recordFiles <- evaluate recordFiles'
-          (newHintHandle, newRecordHandle) <- addNewRecord dir
-          putKeysFromRecordFiles newHintHandle newRecordHandle currentKeys recordFiles
-          hClose newHintHandle
-          hClose newRecordHandle
-          mapM_ removeFile hintFiles
-          mapM_ removeFile recordFiles
