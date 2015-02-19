@@ -11,6 +11,4 @@ import           Database.KeyValue.Types
 
 -- | Give the current time
 currentTimestamp :: IO Timestamp
-currentTimestamp = do
-  t <- getPOSIXTime
-  return $! round t
+currentTimestamp = fmap (round . (*1000000)) getPOSIXTime
