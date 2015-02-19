@@ -10,6 +10,7 @@
 
 module Database.KeyValue.Init(initDB) where
 
+import           Control.Concurrent
 import qualified Data.HashTable.IO                as HT
 import           Database.KeyValue.FileOperations
 import           Database.KeyValue.LogOperations
@@ -17,7 +18,7 @@ import           Database.KeyValue.Types
 import           System.Directory
 
 -- | Initialize the database from the given Config
-initDB :: Config -> IO KeyValue
+initDB :: Config -> IO (MVar KeyValue)
 initDB cfg = do
     createDirectoryIfMissing True baseDir
     -- TODO: Add conflict resolution using timestamp
@@ -25,5 +26,7 @@ initDB cfg = do
       getKeyAndValueLocs >>=
       HT.fromList
     (newHintHandle, newRecordHandle) <- addNewRecord baseDir
-    return (KeyValue newHintHandle newRecordHandle table) where
+    m <- newEmptyMVar
+    putMVar m (KeyValue newHintHandle newRecordHandle table)
+    return m where
       baseDir = baseDirectory cfg
