@@ -14,7 +14,8 @@ module Database.KeyValue ( get
                          , listKeys
                          , closeDB
                          , mergeDataLogs
-                         , Config
+                         , Config(..)
+                         , KeyValue
                          ) where
 
 import           Control.Concurrent
