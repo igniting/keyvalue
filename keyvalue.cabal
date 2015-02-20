@@ -30,3 +30,17 @@ library
                        time
   -- hs-source-dirs:      
   default-language:    Haskell2010
+
+Test-Suite test-keyvalue
+  type:                exitcode-stdio-1.0
+  main-is:             test/test-keyvalue.hs
+  build-depends:       base >=4.7 && <4.8,
+                       hashtables >=1.2 && <1.3,
+                       directory >=1.2 && <1.3,
+                       bytestring,
+                       cereal,
+                       filemanip,
+                       filepath,
+                       temporary,
+                       time,
+                       QuickCheck
