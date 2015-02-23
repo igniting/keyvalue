@@ -26,11 +26,16 @@ testMerge :: [String] -> Property
 testMerge xs = monadicIO $ do
   dir <- run $ createTempDirectory "/tmp" "keyvalue."
   run $ mapM_ (insertKey dir) xs
-  run $ KV.mergeDataLogs dir
-  m <- run $ initialize dir
-  keys <- run $ fmap (map unpack) (KV.listKeys m)
+  keys <- run $ mergeAndGetKeys dir
   assert (keys `isEquiv` xs)
-  run $ cleanup dir m
+
+testDeleteAndMerge :: [String] -> Property
+testDeleteAndMerge xs = monadicIO $ do
+  dir <- run $ createTempDirectory "/tmp" "keyvalue."
+  run $ mapM_ (insertKey dir) xs
+  run $ mapM_ (deleteKey dir) xs
+  keys <- run $ mergeAndGetKeys dir
+  assert (null keys)
 
 isEquiv :: [String] -> [String] -> Bool
 isEquiv xs ys = (nub . sort) xs == (nub . sort) ys
@@ -41,11 +46,26 @@ insertKey dir s = do
   KV.put m (pack s) (pack s)
   KV.closeDB m
 
+deleteKey :: FilePath -> String -> IO ()
+deleteKey dir s = do
+  m <- initialize dir
+  KV.delete m (pack s)
+  KV.closeDB m
+
+mergeAndGetKeys :: FilePath -> IO [String]
+mergeAndGetKeys dir = do
+  KV.mergeDataLogs dir
+  m <- initialize dir
+  keys <- fmap (map unpack) (KV.listKeys m)
+  cleanup dir m
+  return keys
+
 main :: IO ()
 main = do
   dir <- createTempDirectory "/tmp" "keyvalue."
   m <- initialize dir
-  quickCheck (testGet m)
+  quickCheckWith stdArgs { maxSuccess = 100 } (testGet m)
   cleanup dir m
-  quickCheck testMerge
+  quickCheckWith stdArgs { maxSuccess = 100 } testMerge
+  quickCheckWith stdArgs { maxSuccess = 100 } testDeleteAndMerge
   return ()

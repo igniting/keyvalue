@@ -28,8 +28,11 @@ type OffsetTable = HT.BasicHashTable Key ValueLoc
 -- | Timestamp is used in conflict resolution
 type Timestamp = Word64
 
--- | This is used while merging
-type KeysTable = HT.BasicHashTable Key Timestamp
+-- | Store the time key was written and if it was deleted
+type KeyUpdateInfo = (Timestamp, Bool)
+
+-- | Hash table of key info used while merging
+type KeysTable = HT.BasicHashTable Key KeyUpdateInfo
 
 -- | Hint Log format
 data HintLog = HintLog { hKeySize   :: Word32

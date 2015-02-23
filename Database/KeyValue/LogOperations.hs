@@ -12,7 +12,6 @@ module Database.KeyValue.LogOperations( hintExt
                                       , putKeysFromRecordFiles
                                       ) where
 
-import           Control.Arrow
 import           Control.Monad
 import qualified Data.ByteString           as B
 import qualified Data.HashTable.IO         as HT
@@ -70,21 +69,23 @@ getKeysFromHintFiles hintFiles = do
   return table
 
 -- | Get all keys and timestamp from a hint file
-getKeysFromHintFile :: FilePath -> IO [(Key, Timestamp)]
+getKeysFromHintFile :: FilePath -> IO [(Key, KeyUpdateInfo)]
 getKeysFromHintFile file = do
   -- TODO: Make this lazy
   c <- B.readFile file
   case runGet parseHintLogs c of
     Left _ -> error "Error occured parsing hint log."
-    Right hintLogs -> return (map (hKey &&& hTimestamp) (filter (\l -> hOffset l /= 0) hintLogs))
+    Right hintLogs -> return (map getKeyUpdateInfo hintLogs) where
+      getKeyUpdateInfo :: HintLog -> (Key, KeyUpdateInfo)
+      getKeyUpdateInfo l = (hKey l, (hTimestamp l, hOffset l == 0))
 
 -- | Insert the key in hash map after checking for conflicts
-checkAndInsert :: KeysTable -> (Key, Timestamp) -> IO ()
-checkAndInsert table (k, t) = do
+checkAndInsert :: KeysTable -> (Key, KeyUpdateInfo) -> IO ()
+checkAndInsert table (k, u) = do
   v <- HT.lookup table k
   case v of
-    Nothing -> HT.insert table k t
-    Just t' -> when (t > t') $ HT.insert table k t'
+    Nothing -> HT.insert table k u
+    Just (t', _) -> when (fst u > t') $ HT.insert table k u
 
 -- | Read records from data files and write it to merged data and hint file
 putKeysFromRecordFiles :: Handle -> Handle -> KeysTable -> [FilePath] -> IO ()
@@ -101,7 +102,7 @@ putKeysFromRecordFile hHt rHt t recordFile = do
     Right dataLogs -> mapM_ (putKeyFromDataLog hHt rHt t) dataLogs
 
 -- | Write a data log to merged data and hint file if it is present in
--- the (Key, Timestamp) hashmap obtained from hint files
+-- the (Key, KeyUpdateInfo) hashmap obtained from hint files
 putKeyFromDataLog :: Handle -> Handle -> KeysTable -> DataLog -> IO ()
 putKeyFromDataLog hHt rHt t dataLog = do
   let k = dKey dataLog
@@ -109,7 +110,8 @@ putKeyFromDataLog hHt rHt t dataLog = do
   v <- HT.lookup t k
   case v of
     Nothing -> return ()
-    Just t' -> when (t' == timestamp) $ do
+    Just (_, True) -> return ()
+    Just (t', False) -> when (t' == timestamp) $ do
       offset <- hFileSize rHt
       B.hPut rHt (runPut (deserializeData k (dValue dataLog) timestamp))
       B.hPut hHt (runPut (deserializeHint k (offset + 1) timestamp))
