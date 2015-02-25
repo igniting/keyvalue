@@ -44,3 +44,21 @@ Test-Suite test-keyvalue
                        temporary,
                        time,
                        QuickCheck
+  default-language:    Haskell2010
+
+benchmark bench-keyvalue
+  type:                exitcode-stdio-1.0
+  main-is:             benchmarks/Main.hs
+  build-depends:       base >=4.7 && <4.8,
+                       hashtables >=1.2 && <1.3,
+                       directory >=1.2 && <1.3,
+                       bytestring,
+                       cereal,
+                       filemanip,
+                       filepath,
+                       temporary,
+                       time,
+                       QuickCheck,
+                       criterion
+  ghc-options:         -Wall -O2
+  default-language:    Haskell2010
