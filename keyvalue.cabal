@@ -17,7 +17,14 @@ cabal-version:       >=1.10
 
 library
   exposed-modules:     Database.KeyValue
-  -- other-modules:       
+  other-modules:       Database.KeyValue.Init,
+                       Database.KeyValue.Types,
+                       Database.KeyValue.Merge,
+                       Database.KeyValue.Parsing,
+                       Database.KeyValue.Timestamp,
+                       Database.KeyValue.LogOperations,
+                       Database.KeyValue.FileOperations
+
   -- other-extensions:    
   build-depends:       base >=4.7 && <4.8,
                        hashtables >=1.2 && <1.3,
