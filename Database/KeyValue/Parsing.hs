@@ -10,6 +10,7 @@ import qualified Data.ByteString         as B
 import           Data.Serialize.Get
 import           Data.Serialize.Put
 import           Database.KeyValue.Types
+import           System.IO
 
 -- | Read one hint log
 parseHintLog :: Get HintLog
@@ -49,6 +50,19 @@ parseDataLogs = do
      else do dataLog <- parseDataLog
              dataLogs <- parseDataLogs
              return (dataLog:dataLogs)
+
+-- | Read a value from the current handle
+getValueFromHandle :: Handle -> IO (Maybe Value)
+getValueFromHandle ht = do
+  maybeKeysize <- fmap (runGet getWord32le) (B.hGet ht 4)
+  case maybeKeysize of
+       Left _ -> return Nothing
+       Right ksz -> do
+         hSeek ht RelativeSeek (fromIntegral ksz)
+         maybeValueSize <- fmap (runGet getWord32le) (B.hGet ht 4)
+         case maybeValueSize of
+              Left _ -> return Nothing
+              Right vsz -> fmap Just (B.hGet ht (fromIntegral vsz))
 
 -- | Get the key offset pair from a hint log
 getKeyOffsetPair :: HintLog -> (Key, Integer)

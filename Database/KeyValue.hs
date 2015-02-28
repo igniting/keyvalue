@@ -19,10 +19,9 @@ module Database.KeyValue ( get
                          ) where
 
 import           Control.Concurrent
+import           Control.Monad
 import qualified Data.ByteString             as B
-import qualified Data.ByteString.Lazy        as BL
 import qualified Data.HashTable.IO           as HT
-import           Data.Serialize.Get
 import           Data.Serialize.Put
 import           Database.KeyValue.Init
 import           Database.KeyValue.Merge
@@ -37,6 +36,7 @@ put :: MVar KeyValue -> Key -> Value -> IO ()
 put m k v = do
     db <- takeMVar m
     offset <- hFileSize (currRecordHandle db)
+    when (offset /= 0) $ hSeek (currRecordHandle db) SeekFromEnd 0
     t <- currentTimestamp
     B.hPut (currRecordHandle db) (runPut (deserializeData k v t))
     B.hPut (currHintHandle db) (runPut (deserializeHint k (offset + 1) t))
@@ -58,10 +58,7 @@ get m k = do
         else
           do
             hSeek (rHandle recordInfo) AbsoluteSeek (rOffset recordInfo - 1)
-            l <- BL.hGetContents (rHandle recordInfo)
-            case runGetLazy parseDataLog l of
-              Left _ -> return Nothing
-              Right v -> return (Just (dValue v))
+            getValueFromHandle (rHandle recordInfo)
 
 -- | Delete key from database
 delete :: MVar KeyValue -> Key -> IO ()

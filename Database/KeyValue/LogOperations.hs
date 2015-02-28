@@ -48,7 +48,10 @@ getKeyAndValueLoc hintFile = do
 
 -- | Get the handle of the data log corresponding to a hint log
 getRecordHandle :: FilePath -> IO Handle
-getRecordHandle hintFile = openBinaryFile (replaceExtension hintFile recordExt) ReadMode
+getRecordHandle hintFile = do
+  ht <- openBinaryFile (replaceExtension hintFile recordExt) ReadMode
+  hSetBuffering ht NoBuffering
+  return ht
 
 -- | Open a new data and the corresponding hint log
 addNewRecord :: FilePath -> IO (Handle, Handle)
