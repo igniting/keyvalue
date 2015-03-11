@@ -18,7 +18,7 @@ import           Database.KeyValue.Types
 import           System.Directory
 
 -- | Initialize the database from the given Config
-initDB :: Config -> IO (MVar KeyValue)
+initDB :: Config -> IO KeyValue
 initDB cfg = do
     createDirectoryIfMissing True baseDir
     -- TODO: Add conflict resolution using timestamp
@@ -27,6 +27,6 @@ initDB cfg = do
       HT.fromList
     (newHintHandle, newRecordHandle) <- addNewRecord baseDir
     m <- newEmptyMVar
-    putMVar m (KeyValue newHintHandle newRecordHandle table)
-    return m where
+    putMVar m table
+    return (KeyValue newHintHandle newRecordHandle m) where
       baseDir = baseDirectory cfg

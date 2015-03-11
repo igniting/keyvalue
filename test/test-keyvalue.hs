@@ -1,4 +1,3 @@
-import           Control.Concurrent
 import           Data.ByteString.Char8   (pack, unpack)
 import           Data.List
 import qualified Database.KeyValue       as KV
@@ -8,19 +7,19 @@ import           Test.Hspec
 import           Test.QuickCheck
 import           Test.QuickCheck.Monadic
 
-initialize :: FilePath -> IO (MVar KV.KeyValue)
+initialize :: FilePath -> IO KV.KeyValue
 initialize dir = KV.initDB cfg where
   cfg = KV.Config dir
 
-cleanup :: FilePath -> MVar KV.KeyValue -> IO ()
-cleanup dir m = do
-  KV.closeDB m
+cleanup :: FilePath -> KV.KeyValue -> IO ()
+cleanup dir db = do
+  KV.closeDB db
   removeDirectoryRecursive dir
 
-testGet :: MVar KV.KeyValue -> String -> Property
-testGet m s = monadicIO $ do
-  run $ KV.put m (pack s) (pack s)
-  v <- run $ KV.get m (pack s)
+testGet :: KV.KeyValue -> String -> Property
+testGet db s = monadicIO $ do
+  run $ KV.put db (pack s) (pack s)
+  v <- run $ KV.get db (pack s)
   assert (v == Just (pack s))
 
 testMerge :: [String] -> Property
@@ -43,33 +42,33 @@ isEquiv xs ys = (nub . sort) xs == (nub . sort) ys
 
 insertKey :: FilePath -> String -> IO ()
 insertKey dir s = do
-  m <- initialize dir
-  KV.put m (pack s) (pack s)
-  KV.closeDB m
+  db <- initialize dir
+  KV.put db (pack s) (pack s)
+  KV.closeDB db
 
 deleteKey :: FilePath -> String -> IO ()
 deleteKey dir s = do
-  m <- initialize dir
-  KV.delete m (pack s)
-  KV.closeDB m
+  db <- initialize dir
+  KV.delete db (pack s)
+  KV.closeDB db
 
 mergeAndGetKeys :: FilePath -> IO [String]
 mergeAndGetKeys dir = do
   KV.mergeDataLogs dir
-  m <- initialize dir
-  keys <- fmap (map unpack) (KV.listKeys m)
-  cleanup dir m
+  db <- initialize dir
+  keys <- fmap (map unpack) (KV.listKeys db)
+  cleanup dir db
   return keys
 
 main :: IO ()
 main = do
   dir <- createTempDirectory "/tmp" "keyvalue."
-  m <- initialize dir
-  hspec $ do
-    describe "get" $ do
-      it "should get an inserted key" $ property (testGet m)
-  cleanup dir m
-  hspec $ do
+  db <- initialize dir
+  hspec $
+    describe "get" $
+      it "should get an inserted key" $ property (testGet db)
+  cleanup dir db
+  hspec $
     describe "merge" $ do
       it "should merge all files" $ property testMerge
       it "should remove deleted keys" $ property testDeleteAndMerge

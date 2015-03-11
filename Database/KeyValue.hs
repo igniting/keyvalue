@@ -32,24 +32,24 @@ import           System.IO
 
 
 -- | Insert a key value in the database
-put :: MVar KeyValue -> Key -> Value -> IO ()
-put m k v = do
-    db <- takeMVar m
+put :: KeyValue -> Key -> Value -> IO ()
+put db k v = do
     offset <- hFileSize (currRecordHandle db)
     when (offset /= 0) $ hSeek (currRecordHandle db) SeekFromEnd 0
     t <- currentTimestamp
     B.hPut (currRecordHandle db) (runPut (deserializeData k v t))
     B.hPut (currHintHandle db) (runPut (deserializeHint k (offset + 1) t))
-    HT.insert (offsetTable db) k (ValueLoc (offset + 1) (currRecordHandle db))
-    putMVar m db
+    table <- takeMVar (offsetTable db)
+    HT.insert table k (ValueLoc (offset + 1) (currRecordHandle db))
+    putMVar (offsetTable db) table
     return ()
 
 -- | Get the value of the key
-get :: MVar KeyValue -> Key -> IO (Maybe Value)
-get m k = do
-    db <- takeMVar m
-    maybeRecordInfo <- HT.lookup (offsetTable db) k
-    putMVar m db
+get :: KeyValue -> Key -> IO (Maybe Value)
+get db k = do
+    table <- takeMVar (offsetTable db)
+    putMVar (offsetTable db) table
+    maybeRecordInfo <- HT.lookup table k
     case maybeRecordInfo of
       Nothing -> return Nothing
       (Just recordInfo) -> if rOffset recordInfo == 0
@@ -61,28 +61,28 @@ get m k = do
             getValueFromHandle (rHandle recordInfo)
 
 -- | Delete key from database
-delete :: MVar KeyValue -> Key -> IO ()
-delete m k = do
-    db <- takeMVar m
-    HT.delete (offsetTable db) k
-    putMVar m db
+delete :: KeyValue -> Key -> IO ()
+delete db k = do
+    table <- takeMVar (offsetTable db)
+    HT.delete table k
+    putMVar (offsetTable db) table
     t <- currentTimestamp
     B.hPut (currHintHandle db) (runPut (deserializeHint k 0 t))
     return ()
 
 -- | List all keys
-listKeys :: MVar KeyValue -> IO [Key]
-listKeys m = do
-    db <- takeMVar m
-    let table = offsetTable db
-    putMVar m db
+listKeys :: KeyValue -> IO [Key]
+listKeys db = do
+    table <- takeMVar (offsetTable db)
+    putMVar (offsetTable db) table
     fmap (map fst) $ HT.toList table
 
 -- | Close the current instance of database
-closeDB :: MVar KeyValue -> IO ()
-closeDB m = do
-    db <- takeMVar m
+closeDB :: KeyValue -> IO ()
+closeDB db = do
     hClose (currHintHandle db)
     hClose (currRecordHandle db)
-    recordHandles <- fmap (map (rHandle . snd)) ((HT.toList . offsetTable) db)
+    table <- takeMVar (offsetTable db)
+    putMVar (offsetTable db) table
+    recordHandles <- fmap (map (rHandle . snd)) (HT.toList table)
     mapM_ hClose recordHandles

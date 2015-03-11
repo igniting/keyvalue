@@ -6,8 +6,9 @@
 
 module Database.KeyValue.Types where
 
-import qualified Data.ByteString       as B
-import qualified Data.HashTable.IO     as HT
+import           Control.Concurrent.MVar
+import qualified Data.ByteString         as B
+import qualified Data.HashTable.IO       as HT
 import           Data.Word
 import           System.IO
 
@@ -55,5 +56,5 @@ data Config = Config { baseDirectory :: FilePath }
 -- | Current instance of the database
 data KeyValue = KeyValue { currHintHandle :: Handle
                          , currRecordHandle :: Handle
-                         , offsetTable :: OffsetTable
+                         , offsetTable :: MVar OffsetTable
                          }
