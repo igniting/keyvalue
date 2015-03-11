@@ -4,6 +4,7 @@ import           Data.List
 import qualified Database.KeyValue       as KV
 import           System.Directory
 import           System.IO.Temp
+import           Test.Hspec
 import           Test.QuickCheck
 import           Test.QuickCheck.Monadic
 
@@ -64,8 +65,12 @@ main :: IO ()
 main = do
   dir <- createTempDirectory "/tmp" "keyvalue."
   m <- initialize dir
-  quickCheckWith stdArgs { maxSuccess = 100 } (testGet m)
+  hspec $ do
+    describe "get" $ do
+      it "should get an inserted key" $ property (testGet m)
   cleanup dir m
-  quickCheckWith stdArgs { maxSuccess = 100 } testMerge
-  quickCheckWith stdArgs { maxSuccess = 100 } testDeleteAndMerge
+  hspec $ do
+    describe "merge" $ do
+      it "should merge all files" $ property testMerge
+      it "should remove deleted keys" $ property testDeleteAndMerge
   return ()

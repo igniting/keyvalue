@@ -44,7 +44,8 @@ test-suite test-keyvalue
         filepath -any,
         temporary -any,
         time -any,
-        QuickCheck -any
+        QuickCheck -any,
+        hspec -any
     type: exitcode-stdio-1.0
     main-is: test/test-keyvalue.hs
     default-language: Haskell2010
@@ -60,7 +61,6 @@ benchmark bench-keyvalue
         filepath -any,
         temporary -any,
         time -any,
-        QuickCheck -any,
         criterion -any
     type: exitcode-stdio-1.0
     main-is: benchmarks/Main.hs
