@@ -16,21 +16,28 @@ cleanup dir db = do
   KV.closeDB db
   removeDirectoryRecursive dir
 
-testGet :: KV.KeyValue -> String -> Property
-testGet db s = monadicIO $ do
-  run $ KV.put db (pack s) (pack s)
-  v <- run $ KV.get db (pack s)
-  assert (v == Just (pack s))
+propGet :: KV.KeyValue -> String -> String -> Property
+propGet db k v = monadicIO $ do
+  run $ KV.put db (pack k) (pack v)
+  v' <- run $ KV.get db (pack k)
+  assert (v' == Just (pack v))
 
-testMerge :: [String] -> Property
-testMerge xs = monadicIO $ do
+propGetDuplicate :: KV.KeyValue -> String -> String -> String -> Property
+propGetDuplicate db k v v' = monadicIO $ do
+  run $ KV.put db (pack k) (pack v)
+  run $ KV.put db (pack k) (pack v')
+  v'' <- run $ KV.get db (pack k)
+  assert (v'' == Just (pack v'))
+
+propMerge :: [String] -> Property
+propMerge xs = monadicIO $ do
   dir <- run $ createTempDirectory "/tmp" "keyvalue."
   run $ mapM_ (insertKey dir) xs
   keys <- run $ mergeAndGetKeys dir
   assert (keys `isEquiv` xs)
 
-testDeleteAndMerge :: [String] -> Property
-testDeleteAndMerge xs = monadicIO $ do
+propDeleteAndMerge :: [String] -> Property
+propDeleteAndMerge xs = monadicIO $ do
   dir <- run $ createTempDirectory "/tmp" "keyvalue."
   run $ mapM_ (insertKey dir) xs
   run $ mapM_ (deleteKey dir) xs
@@ -65,11 +72,12 @@ main = do
   dir <- createTempDirectory "/tmp" "keyvalue."
   db <- initialize dir
   hspec $
-    describe "get" $
-      it "should get an inserted key" $ property (testGet db)
+    describe "get" $ do
+      it "should get an inserted key" $ property (propGet db)
+      it "should get later value in case of duplicates" $ property (propGetDuplicate db)
   cleanup dir db
   hspec $
     describe "merge" $ do
-      it "should merge all files" $ property testMerge
-      it "should remove deleted keys" $ property testDeleteAndMerge
+      it "should merge all files" $ property propMerge
+      it "should remove deleted keys" $ property propDeleteAndMerge
   return ()
