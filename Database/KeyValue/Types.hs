@@ -35,6 +35,13 @@ type KeyUpdateInfo = (Timestamp, Bool)
 -- | Hash table of key info used while merging
 type KeysTable = HT.BasicHashTable Key KeyUpdateInfo
 
+-- | Header for each value
+data Header = Header { constructorIdx :: Word32   -- ^ Type of constructor, starting from 0
+                     , valueSize      :: Word32   -- ^ Total size of the value
+                     , numberOfFields :: Word32   -- ^ Total number of fields in the value
+                     , fieldLengths   :: [Word32] -- ^ Length of each field
+                     }
+
 -- | Hint Log format
 data HintLog = HintLog { hKeySize   :: Word32
                        , hKey       :: Key
@@ -45,7 +52,7 @@ data HintLog = HintLog { hKeySize   :: Word32
 -- | Data Log format
 data DataLog = DataLog { dKeySize   :: Word32
                        , dKey       :: Key
-                       , dValueSize :: Word32
+                       , dHeader    :: Header
                        , dValue     :: Value
                        , dTimestamp :: Word64
                        }

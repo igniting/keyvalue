@@ -32,12 +32,12 @@ import           System.IO
 
 
 -- | Insert a key value in the database
-put :: KeyValue -> Key -> Value -> IO ()
-put db k v = do
+put :: KeyValue -> Key -> Header -> Value -> IO ()
+put db k h v = do
     offset <- hFileSize (currRecordHandle db)
     when (offset /= 0) $ hSeek (currRecordHandle db) SeekFromEnd 0
     t <- currentTimestamp
-    B.hPut (currRecordHandle db) (runPut (deserializeData k v t))
+    B.hPut (currRecordHandle db) (runPut (deserializeData k h v t))
     B.hPut (currHintHandle db) (runPut (deserializeHint k (offset + 1) t))
     table <- takeMVar (offsetTable db)
     HT.insert table k (ValueLoc (offset + 1) (currRecordHandle db))

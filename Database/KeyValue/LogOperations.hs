@@ -116,6 +116,6 @@ putKeyFromDataLog hHt rHt t dataLog = do
     Just (_, True) -> return ()
     Just (t', False) -> when (t' == timestamp) $ do
       offset <- hFileSize rHt
-      B.hPut rHt (runPut (deserializeData k (dValue dataLog) timestamp))
+      B.hPut rHt (runPut (deserializeData k (dHeader dataLog) (dValue dataLog) timestamp))
       B.hPut hHt (runPut (deserializeHint k (offset + 1) timestamp))
       return ()
