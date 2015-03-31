@@ -19,7 +19,7 @@ getKey db = KV.get db k
 main :: IO ()
 main = do
   dir <- createTempDirectory "/tmp" "keyvalue."
-  db <- KV.initDB (KV.Config dir)
+  db <- KV.initDB (KV.Config dir 2)
   defaultMain [ bench "put" $ nfIO (insertKey db)
               , bench "get" $ nfIO (getKey db)
               ]

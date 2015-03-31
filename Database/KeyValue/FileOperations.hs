@@ -19,3 +19,7 @@ assertDirectoryExists dir = doesDirectoryExist dir >>=
 -- | Get all files ending the a given extension in a given directory
 getFiles :: String -> FilePath -> IO [FilePath]
 getFiles ext = find (depth ==? 0) (extension ==? ext)
+
+-- | Return number of files with a given extension in the given directory
+getFilesCount :: String -> FilePath -> IO Int
+getFilesCount ext dir = fmap length $ getFiles ext dir

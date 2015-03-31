@@ -11,9 +11,11 @@
 module Database.KeyValue.Init(initDB) where
 
 import           Control.Concurrent
+import           Control.Monad                    (when)
 import qualified Data.HashTable.IO                as HT
 import           Database.KeyValue.FileOperations
 import           Database.KeyValue.LogOperations
+import           Database.KeyValue.Merge
 import           Database.KeyValue.Types
 import           System.Directory
 
@@ -21,6 +23,9 @@ import           System.Directory
 initDB :: Config -> IO KeyValue
 initDB cfg = do
     createDirectoryIfMissing True baseDir
+    -- There should be equal number of hint and record files
+    filesCount <- fmap (2 *) $ getFilesCount hintExt baseDir
+    when (filesCount >= maxOpenFiles cfg) (mergeDataLogs baseDir)
     -- TODO: Add conflict resolution using timestamp
     table <- getFiles hintExt baseDir >>=
       getKeyAndValueLocs >>=

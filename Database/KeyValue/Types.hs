@@ -51,7 +51,9 @@ data DataLog = DataLog { dKeySize   :: Word32
                        }
 
 -- | Config for the database
-data Config = Config { baseDirectory :: FilePath }
+data Config = Config { baseDirectory :: FilePath
+                     , maxOpenFiles  :: Int
+                     }
 
 -- | Current instance of the database
 data KeyValue = KeyValue { currHintHandle :: Handle

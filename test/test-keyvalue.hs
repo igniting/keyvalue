@@ -9,7 +9,7 @@ import           Test.QuickCheck.Monadic
 
 initialize :: FilePath -> IO KV.KeyValue
 initialize dir = KV.initDB cfg where
-  cfg = KV.Config dir
+  cfg = KV.Config dir 2
 
 cleanup :: FilePath -> KV.KeyValue -> IO ()
 cleanup dir db = do
