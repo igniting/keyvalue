@@ -20,9 +20,11 @@ library
         filemanip -any,
         filepath -any,
         temporary -any,
-        time -any
+        time -any,
+        blob -any
     exposed-modules:
         Database.KeyValue
+        Database.KeyValue.Blob
     default-language: Haskell2010
     other-modules:
         Database.KeyValue.Init
